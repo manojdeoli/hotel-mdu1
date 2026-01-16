@@ -594,7 +594,9 @@ function App() {
     } catch (error) { // eslint-disable-line no-empty
       console.error('Sequence failed:', error);
       addMessage(`Error during sequence: ${error.message}`);
+      setIsSequenceRunning(false);
     } finally {
+      setIsLoading(false);
       // You might want to set this to false when the sequence is fully complete
     }
   };
