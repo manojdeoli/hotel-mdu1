@@ -251,8 +251,8 @@ function App() {
       addMessage("Requesting Bluetooth Device...");
       const device = await navigator.bluetooth.requestDevice({
         // To "register" your physical beacon, use filters instead of acceptAllDevices:
-        filters: [{ namePrefix: 'MWC' }],
-        // acceptAllDevices: true, // Currently accepts any device for testing
+        // filters: [{ namePrefix: 'MWC' }],
+        acceptAllDevices: true, // Currently accepts any device for testing
         optionalServices: ['battery_service']
       });
 
