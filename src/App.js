@@ -221,8 +221,8 @@ function App() {
       
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      addMessage(`Location Verified: MWC Hall 3 - ${device.name || 'Beacon'}`);
-      addMessage("Push Notification: Welcome to the MWC VIP Lounge! Drinks are on us.");
+      addMessage(`Location Verified: MWC 2026 - ${device.name || 'Beacon'}`);
+      addMessage("Push Notification: Welcome to the MWC Wipro Stall!");
       
     } catch (error) {
       addMessage(`BLE Scan failed: ${error.message}`);
