@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -74,7 +74,7 @@ const useSyncedState = (key, initialValue) => {
     };
   }, [key]);
 
-  const setSyncedState = (newValue) => {
+  const setSyncedState = useCallback((newValue) => {
     setState((prev) => {
       const value = newValue instanceof Function ? newValue(prev) : newValue;
       const ch = new BroadcastChannel('hotel_mdu_sync');
@@ -82,7 +82,7 @@ const useSyncedState = (key, initialValue) => {
       ch.close();
       return value;
     });
-  };
+  }, [key]);
 
   return [state, setSyncedState];
 };
@@ -124,7 +124,7 @@ function App() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const addMessage = (message) => {
+  const addMessage = useCallback((message) => {
     setMessages(prevMessages => {
       const newMessage = `${new Date().toLocaleTimeString()}: ${message}`;
       if (prevMessages.includes(newMessage)) {
@@ -132,7 +132,7 @@ function App() {
       }
       return [...prevMessages, newMessage];
     });
-  };
+  }, [setMessages]);
 
   // --- State Persistence Logic ---
   // On component mount, load state from localStorage
@@ -168,7 +168,7 @@ function App() {
     if (checkInStatus === 'Checked Out') { // Only show checkout message here
       addMessage('Thank you for staying with us! Your check-out is complete');
     }
-  }, [verifiedPhoneNumber, checkInStatus, kycMatchResponse]);
+  }, [verifiedPhoneNumber, checkInStatus, kycMatchResponse, addMessage]);
 
   const handleRegistrationSequence = async () => {
     if (!verifiedPhoneNumber) {
@@ -359,7 +359,7 @@ function App() {
         setIdentityIntegrity('Bad');
       }
     }
-  }, [artificialTime, identityIntegrity, lastIntegrityCheckTime]);
+  }, [artificialTime, identityIntegrity, lastIntegrityCheckTime, setIdentityIntegrity]);
 
 
   useEffect(() => {
@@ -369,7 +369,7 @@ function App() {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [isSequenceRunning, verifiedPhoneNumber, simulationMode]);
+  }, [isSequenceRunning, verifiedPhoneNumber, simulationMode, setArtificialTime]);
 
 
   useEffect(() => {
