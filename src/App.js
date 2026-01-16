@@ -248,20 +248,77 @@ function App() {
     try {
       addMessage("Requesting Bluetooth Device...");
       const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
+        // To "register" your physical beacon, use filters instead of acceptAllDevices:
+        filters: [{ namePrefix: 'MWC' }],
+        // acceptAllDevices: true, // Currently accepts any device for testing
         optionalServices: ['battery_service']
       });
 
-      addMessage(`Beacon detected: ${device.name || 'Unknown Device'}`);
-      
-      // Simulate location-based logic
+      const deviceName = device.name || 'Unknown Device';
+      addMessage(`Beacon detected: ${deviceName}`);
       setBleStatus('Connected');
-      addMessage("Verifying location credentials via BLE...");
       
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Define base location (MWC Venue / Hotel)
+      const baseLat = hotelLocation ? hotelLocation.lat : -33.8688;
+      const baseLng = hotelLocation ? hotelLocation.lng : 151.2093;
+      if (!hotelLocation) setHotelLocation({ lat: baseLat, lng: baseLng });
+
+      let newLocation = null;
+      let locationLabel = "Unknown Area";
+
+      // --- Decision Logic based on Beacon Name ---
+      if (deviceName.includes("Entry") || deviceName.includes("Gate")) {
+        locationLabel = "Hotel Entry Gate";
+        newLocation = { lat: baseLat, lng: baseLng };
+        addMessage("Context: User arrived at Entry Gate.");
+        
+      } else if (deviceName.includes("Kiosk") || deviceName.includes("Lobby")) {
+        locationLabel = "Check-in Kiosk";
+        newLocation = { lat: baseLat + 0.0001, lng: baseLng };
+        addMessage("Context: User is at the Check-in Kiosk.");
+        
+        if (checkInStatus !== 'Checked In') {
+            addMessage("Beacon Trigger: Initiating Check-in...");
+            setCheckInStatus("Checked In");
+            setRfidStatus("Verified");
+            setTimeout(() => setRfidStatus("Unverified"), 3000);
+        }
+
+      } else if (deviceName.includes("Elevator") || deviceName.includes("Lift")) {
+        locationLabel = "Elevator Lobby";
+        newLocation = { lat: baseLat + 0.0001, lng: baseLng + 0.0001 };
+        addMessage("Context: User is at the Elevator.");
+        
+        // Auto-trigger Elevator Access
+        if (elevatorAccess !== 'Yes, Floor 13') {
+            addMessage("Beacon Trigger: Verifying Identity for Elevator...");
+            const identityResult = await checkIdentityIntegrity(false, 'Checked In', false);
+            if (identityResult) {
+                setElevatorAccess('Yes, Floor 13');
+                addMessage("Access Granted: Elevator to Floor 13.");
+            }
+        }
+
+      } else if (deviceName.includes("Room") || deviceName.includes("Door")) {
+        locationLabel = "Room 1337";
+        newLocation = { lat: baseLat + 0.0002, lng: baseLng + 0.0002 };
+        addMessage("Context: User is at the Room Door.");
+        
+        // Auto-trigger Room Access
+        if (roomAccess !== 'Granted') {
+             addMessage("Beacon Trigger: Verifying Identity for Room...");
+             const identityResult = await checkIdentityIntegrity(false, 'Checked In', false);
+             if (identityResult) {
+                 setRoomAccess('Granted');
+                 setRfidStatus('Verified');
+                 setTimeout(() => setRfidStatus('Unverified'), 3000);
+                 addMessage("Access Granted: Room 1337 Unlocked.");
+             }
+        }
+      }
       
-      addMessage(`Location Verified: MWC 2026 - ${device.name || 'Beacon'}`);
-      addMessage("Push Notification: Welcome to the MWC Wipro Stall!");
+      if (newLocation) setUserGps(newLocation);
+      addMessage(`Location Verified via BLE: ${locationLabel}`);
       
     } catch (error) {
       addMessage(`BLE Scan failed: ${error.message}`);
@@ -499,7 +556,7 @@ function App() {
     }
   };
 
-  const checkIdentityIntegrity = async (loader, checkInStatus) => {
+  const checkIdentityIntegrity = async (loader, checkInStatus, autoGrant = true) => {
     if (!verifiedPhoneNumber) {
       alert('Please verify phone number first.');
       return false;
@@ -516,7 +573,7 @@ function App() {
         setIdentityIntegrity('Good');
         if (artificialTime) setLastIntegrityCheckTime(new Date(artificialTime.getTime()));
       }
-      if (checkInStatus === 'Checked In') {
+      if (autoGrant && checkInStatus === 'Checked In') {
         setElevatorAccess('Yes, Floor 13');
         setRoomAccess('Granted');
       }
