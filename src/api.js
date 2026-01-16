@@ -26,15 +26,27 @@ export function verifyPhoneNumber(phoneNumber) {
 }
 
 export function kycMatch(data) {
-    return post(`${API_BASE_URL}/kyc-match/kyc-match/v0.2/match`, data);
+    //return post(`${API_BASE_URL}/kyc-match/kyc-match/v0.2/match`, data);
+    return Promise.resolve({
+        nameMatch: 'true',
+        addressMatch: 'true',
+        emailMatch: 'true',
+        birthdateMatch: 'true'
+    });
 }
 
 export function simSwap(phoneNumber) {
-    return post(`${API_BASE_URL}/sim-swap/sim-swap/v0/check`, { phoneNumber, maxAge: 240 });
+    //return post(`${API_BASE_URL}/sim-swap/sim-swap/v0/check`, { phoneNumber, maxAge: 240 });
+    return Promise.resolve({
+        swapped: false
+    });
 }
 
 export function deviceSwap(phoneNumber) {
-    return post(`${API_BASE_URL}/device-swap/device-swap/v0.1/check`, { phoneNumber, maxAge: 240 });
+    //return post(`${API_BASE_URL}/device-swap/device-swap/v0.1/check`, { phoneNumber, maxAge: 240 });
+    return Promise.resolve({
+        swapped: false
+    });
 }
 
 
@@ -189,13 +201,13 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
     await new Promise(resolve => setTimeout(resolve, 5000));
     addMessage("Pre-populating booking information...");
     const bookingInfo = {
-        checkIn: "2025-11-05T15:00:00",
-        checkOut: "2025-11-06T11:00:00" // Assuming checkout is next day
+        checkIn: "2026-01-16T15:00:00",
+        checkOut: "2026-01-17T11:00:00" // Assuming checkout is next day
     };
     addMessage(`Check-in: ${bookingInfo.checkIn}, Check-out: ${bookingInfo.checkOut}`);
 
     await new Promise(resolve => setTimeout(resolve, 5000));
-    const twelvePM = new Date("2025-11-05T12:00:00");
+    const twelvePM = new Date("2026-01-16T12:00:00");
     setArtificialTime(twelvePM);
     addMessage("Artificial clock set to 12:00 PM.");
 
@@ -203,17 +215,17 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
 
     const route = generateRoute(initialUserLocation, hotelLocation);
     const timeSteps = [
-        { time: "2025-11-05T12:00:00", delay: 2000 },
-        { time: "2025-11-05T12:30:00", delay: 2000 },
-        { time: "2025-11-05T13:00:00", delay: 2000 },
-        { time: "2025-11-05T13:30:00", delay: 2000 },
-        { time: "2025-11-05T14:00:00", delay: 2000 },
-        { time: "2025-11-05T14:30:00", delay: 2000 },
-        { time: "2025-11-05T15:00:00", delay: 2000 },
-        { time: "2025-11-05T15:05:00", delay: 1000 },
-        { time: "2025-11-05T15:10:00", delay: 1000 },
-        { time: "2025-11-05T15:15:00", delay: 1000 },
-        { time: "2025-11-05T15:20:00", delay: 1000 },
+        { time: "2026-01-16T12:00:00", delay: 2000 },
+        { time: "2026-01-16T12:30:00", delay: 2000 },
+        { time: "2026-01-16T13:00:00", delay: 2000 },
+        { time: "2026-01-16T13:30:00", delay: 2000 },
+        { time: "2026-01-16T14:00:00", delay: 2000 },
+        { time: "2026-01-16T14:30:00", delay: 2000 },
+        { time: "2026-01-16T15:00:00", delay: 2000 },
+        { time: "2026-01-16T15:05:00", delay: 1000 },
+        { time: "2026-01-16T15:10:00", delay: 1000 },
+        { time: "2026-01-16T15:15:00", delay: 1000 },
+        { time: "2026-01-16T15:20:00", delay: 1000 },
     ];
 
     for (let i = 0; i < timeSteps.length; i++) {
@@ -285,17 +297,17 @@ export async function startCheckOutSequence(phoneNumber, initialUserLocation, ho
     addMessage("Calling Carrier Billing API to finalise payment...");
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    const checkoutTime = new Date("2025-11-06T10:45:00");
+    const checkoutTime = new Date("2026-01-17T10:45:00");
     setArtificialTime(checkoutTime);
     addMessage("Artificial clock set to 10:45 AM for checkout.");
 
     const route = generateRoute(hotelLocation, initialUserLocation); // Route from hotel to initial user location
 
     const timeSteps = [
-        { time: "2025-11-06T10:45:00", delay: 2000, routeIndex: 2 }, // Short distance
-        { time: "2025-11-06T11:00:00", delay: 2000, routeIndex: 5 }, // Further
-        { time: "2025-11-06T11:15:00", delay: 2000, routeIndex: 8 }, // Even further
-        { time: "2025-11-06T11:20:00", delay: 2000, routeIndex: 9 }, // Far away
+        { time: "2026-01-17T10:45:00", delay: 2000, routeIndex: 2 }, // Short distance
+        { time: "2026-01-17T11:00:00", delay: 2000, routeIndex: 5 }, // Further
+        { time: "2026-01-17T11:15:00", delay: 2000, routeIndex: 8 }, // Even further
+        { time: "2026-01-17T11:20:00", delay: 2000, routeIndex: 9 }, // Far away
     ];
 
     for (const step of timeSteps) {
