@@ -56,32 +56,74 @@ const generateRoute = (start, end, sections = 10) => {
 
 // --- End of Location Simulation Data ---
 
+// --- Custom Hook for State Synchronization ---
+const useSyncedState = (key, initialValue) => {
+  const [state, setState] = useState(initialValue);
+
+  useEffect(() => {
+    const channel = new BroadcastChannel('hotel_mdu_sync');
+    const handler = (event) => {
+      if (event.data.key === key) {
+        setState(event.data.value);
+      }
+    };
+    channel.addEventListener('message', handler);
+    return () => {
+      channel.removeEventListener('message', handler);
+      channel.close();
+    };
+  }, [key]);
+
+  const setSyncedState = (newValue) => {
+    setState((prev) => {
+      const value = newValue instanceof Function ? newValue(prev) : newValue;
+      const ch = new BroadcastChannel('hotel_mdu_sync');
+      ch.postMessage({ key, value });
+      ch.close();
+      return value;
+    });
+  };
+
+  return [state, setSyncedState];
+};
+// --- End of Custom Hook ---
+
 function App() {
   const mapUpdateThrottle = useRef(null);
-  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [kycMatchResponse, setKycMatchResponse] = useState(null);
-  const [location, setLocation] = useState(null);
-  const [map, setMap] = useState(null);
-  // New state variables based on the plan
-  const [simulationMode, setSimulationMode] = useState('arrival'); // 'arrival' or 'departure'
-  const [registrationStatus, setRegistrationStatus] = useState('Not Registered');
-  const [artificialTime, setArtificialTime] = useState(null);
-  const [identityIntegrity, setIdentityIntegrity] = useState('Bad'); // Good, Bad
-  const [checkInStatus, setCheckInStatus] = useState('Not Checked In');
-  const [paymentStatus, setPaymentStatus] = useState('Not Paid');
-  const [rfidStatus, setRfidStatus] = useState('Unverified');
-  const [elevatorAccess, setElevatorAccess] = useState('No');
-  const [roomAccess, setRoomAccess] = useState('No');
-  const [hotelLocation, setHotelLocation] = useState(null);
-  const [userGps, setUserGps] = useState(null);
-  const [initialUserLocation, setInitialUserLocation] = useState(null);
-  const [lastIntegrityCheckTime, setLastIntegrityCheckTime] = useState(null);
-  const [bleStatus, setBleStatus] = useState('Idle');
-  const [secondUserGps, setSecondUserGps] = useState(null);
-  const [activeTab, setActiveTab] = useState('status');
+  
+  // --- Shared State (Synced across windows) ---
+  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useSyncedState('verifiedPhoneNumber', null);
+  const [kycMatchResponse, setKycMatchResponse] = useSyncedState('kycMatchResponse', null);
+  const [location, setLocation] = useSyncedState('location', null);
+  const [simulationMode, setSimulationMode] = useSyncedState('simulationMode', 'arrival');
+  const [registrationStatus, setRegistrationStatus] = useSyncedState('registrationStatus', 'Not Registered');
+  const [artificialTime, setArtificialTime] = useSyncedState('artificialTime', null);
+  const [identityIntegrity, setIdentityIntegrity] = useSyncedState('identityIntegrity', 'Bad');
+  const [checkInStatus, setCheckInStatus] = useSyncedState('checkInStatus', 'Not Checked In');
+  const [paymentStatus, setPaymentStatus] = useSyncedState('paymentStatus', 'Not Paid');
+  const [rfidStatus, setRfidStatus] = useSyncedState('rfidStatus', 'Unverified');
+  const [elevatorAccess, setElevatorAccess] = useSyncedState('elevatorAccess', 'No');
+  const [roomAccess, setRoomAccess] = useSyncedState('roomAccess', 'No');
+  const [hotelLocation, setHotelLocation] = useSyncedState('hotelLocation', null);
+  const [userGps, setUserGps] = useSyncedState('userGps', null);
+  const [initialUserLocation, setInitialUserLocation] = useSyncedState('initialUserLocation', null);
+  const [lastIntegrityCheckTime, setLastIntegrityCheckTime] = useSyncedState('lastIntegrityCheckTime', null);
+  const [bleStatus, setBleStatus] = useSyncedState('bleStatus', 'Idle');
+  const [secondUserGps, setSecondUserGps] = useSyncedState('secondUserGps', null);
+  const [messages, setMessages] = useSyncedState('messages', []);
+  const [formState, setFormState] = useSyncedState('formState',
+    formFields.reduce((acc, field) => ({ ...acc, [field.name]: '' }), {})
+  );
 
-  const [messages, setMessages] = useState([]);
+  // --- Local State (Specific to this window/monitor) ---
+  const [isLoading, setIsLoading] = useState(false);
+  const [map, setMap] = useState(null);
+  const [activeTab, setActiveTab] = useState('status');
+  const [isSequenceRunning, setIsSequenceRunning] = useState(false); // Only the driver window runs the sequence logic
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
   const addMessage = (message) => {
     setMessages(prevMessages => {
       const newMessage = `${new Date().toLocaleTimeString()}: ${message}`;
@@ -95,12 +137,8 @@ function App() {
   // --- State Persistence Logic ---
   // On component mount, load state from localStorage
 
-  const [isSequenceRunning, setIsSequenceRunning] = useState(false);
   const responseContainerRef = useRef(null);
   const userProfileRef = useRef(null);
-  const [formState, setFormState] = useState(
-    formFields.reduce((acc, field) => ({ ...acc, [field.name]: '' }), {})
-  );
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -323,9 +361,6 @@ function App() {
     }
   }, [artificialTime, identityIntegrity, lastIntegrityCheckTime]);
 
-  const [phone, setPhone] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     if (isSequenceRunning && verifiedPhoneNumber) {
@@ -628,7 +663,7 @@ function App() {
       <header className="header">
         <h1><a href="/" className="header-link">Hotels/MDUs Use Case Demo</a></h1>
         <div className="artificial-clock">
-          {verifiedPhoneNumber && isSequenceRunning && renderCountdown()}
+          {verifiedPhoneNumber && artificialTime && renderCountdown()}
         </div>
       </header>
 
