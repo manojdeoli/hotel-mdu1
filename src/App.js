@@ -105,7 +105,7 @@ function App() {
   // --- Shared State (Synced across windows) ---
   const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useSyncedState('verifiedPhoneNumber', null);
   const [kycMatchResponse, setKycMatchResponse] = useSyncedState('kycMatchResponse', null);
-  const [location, setLocation] = useSyncedState('location', null);
+  //const [location, setLocation] = useSyncedState('location', null);
   const [simulationMode, setSimulationMode] = useSyncedState('simulationMode', 'arrival');
   const [registrationStatus, setRegistrationStatus] = useSyncedState('registrationStatus', 'Not Registered');
   const [artificialTime, setArtificialTime] = useSyncedState('artificialTime', null);
