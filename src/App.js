@@ -79,6 +79,7 @@ function App() {
   const [lastIntegrityCheckTime, setLastIntegrityCheckTime] = useState(null);
   const [bleStatus, setBleStatus] = useState('Idle');
   const [secondUserGps, setSecondUserGps] = useState(null);
+  const [activeTab, setActiveTab] = useState('status');
 
   const [messages, setMessages] = useState([]);
   const addMessage = (message) => {
@@ -347,6 +348,15 @@ function App() {
       mapInstance.remove();
     };
   }, []);
+
+  // Fix map rendering issues when switching tabs
+  useEffect(() => {
+    if (activeTab === 'logs' && map) {
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 200);
+    }
+  }, [activeTab, map]);
 
   useEffect(() => {
     if (map) {
@@ -624,9 +634,23 @@ function App() {
 
       <main className="main-content">
         <div className="dashboard-container">
-          {/* Main two-column layout */}
-          <div className="dashboard-main">
-            <div className="dashboard-column">
+          
+          {/* Navigation Tabs */}
+          <ul className="nav nav-tabs mb-3" style={{ paddingLeft: '15px', paddingRight: '15px' }}>
+            <li className="nav-item">
+              <button className={`nav-link ${activeTab === 'status' ? 'active' : ''}`} onClick={() => setActiveTab('status')}>Status & Verification</button>
+            </li>
+            <li className="nav-item">
+              <button className={`nav-link ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>Profile & Booking</button>
+            </li>
+            <li className="nav-item">
+              <button className={`nav-link ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>Logs & Map</button>
+            </li>
+          </ul>
+
+          {/* Screen 1: Status & Verification */}
+          <div className={activeTab === 'status' ? 'dashboard-main' : 'd-none'}>
+            <div className="dashboard-column" style={{ width: '100%' }}>
               {/* Phone Verification */}
               <div id="verification-container" className="card">
                 <h2 className="card-header">1. Phone Verification</h2>
@@ -658,13 +682,6 @@ function App() {
                   <li><strong>Elevator Access:</strong> <span>{elevatorAccess}</span></li>
                   <li><strong>Room Access:</strong> <span>{roomAccess}</span></li>
                 </ul>
-                <h3 className="card-header">Booking Details</h3>
-                <ul className="details-list">
-                  <li><strong>Hotel:</strong> <span>{verifiedPhoneNumber ? 'Telstra Towers Melbourne' : '--'}</span></li>
-                  <li><strong>Room:</strong> <span>{verifiedPhoneNumber ? '1337' : '--'}</span></li>
-                  <li><strong>Check-in:</strong> <span>{verifiedPhoneNumber ? format(CHECK_IN_DATE, 'yyyy-MM-dd HH:mm') : '--'}</span></li>
-                  <li><strong>Check-out:</strong> <span>{verifiedPhoneNumber ? format(CHECK_OUT_DATE, 'yyyy-MM-dd HH:mm') : '--'}</span></li>
-                </ul>
               </div>
 
               {/* MWC BLE Section */}
@@ -681,7 +698,23 @@ function App() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
 
+          {/* Screen 2: Profile & Booking */}
+          <div className={activeTab === 'profile' ? 'dashboard-main' : 'd-none'}>
+            <div className="dashboard-column" style={{ width: '100%' }}>
+              {/* Booking Details (Moved from User Status) */}
+              <div id="bookingDetails" className="card">
+                <h2 className="card-header">Booking Details</h2>
+                <ul className="details-list">
+                  <li><strong>Hotel:</strong> <span>{verifiedPhoneNumber ? 'Telstra Towers Melbourne' : '--'}</span></li>
+                  <li><strong>Room:</strong> <span>{verifiedPhoneNumber ? '1337' : '--'}</span></li>
+                  <li><strong>Check-in:</strong> <span>{verifiedPhoneNumber ? format(CHECK_IN_DATE, 'yyyy-MM-dd HH:mm') : '--'}</span></li>
+                  <li><strong>Check-out:</strong> <span>{verifiedPhoneNumber ? format(CHECK_OUT_DATE, 'yyyy-MM-dd HH:mm') : '--'}</span></li>
+                </ul>
+              </div>
+              
               {/* User Profile Section (Full-width) */}
               <div id="userDetails" className="card" ref={userProfileRef}>
                 <h2 className="card-header">3. User Profile Details</h2>
@@ -720,8 +753,11 @@ function App() {
                 </form>
               </div>
             </div>
+          </div>
 
-            <div className="dashboard-column">
+          {/* Screen 3: Logs & Map */}
+          <div className={activeTab === 'logs' ? 'dashboard-main' : 'd-none'}>
+            <div className="dashboard-column" style={{ width: '100%' }}>
               {/* API Actions */}
               <div id="apiActions" className="card">
                 <h2 className="card-header">2. Automated Sequences</h2>
@@ -755,8 +791,6 @@ function App() {
               </div>
             </div>
           </div>
-
-
         </div>
       </main>
 
