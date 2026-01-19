@@ -165,6 +165,7 @@ function App() {
   useEffect(() => { roomAccessRef.current = roomAccess; }, [roomAccess]);
   useEffect(() => { hotelLocationRef.current = hotelLocation; }, [hotelLocation]);
   useEffect(() => { verifiedPhoneNumberRef.current = verifiedPhoneNumber; }, [verifiedPhoneNumber]);
+  const activeListenerRef = useRef(null);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -256,8 +257,39 @@ function App() {
     }
   };
 
+  const checkIdentityIntegrity = useCallback(async (loader, checkInStatus, autoGrant = true) => {
+    if (!verifiedPhoneNumberRef.current) {
+      alert('Please verify phone number first.');
+      return false;
+    }
+    if (loader) setIsLoading(true);
+    setIdentityIntegrity('Checking...');
+    try {
+      const simSwapResult = await api.simSwap(verifiedPhoneNumberRef.current);
+      const deviceSwapResult = await api.deviceSwap(verifiedPhoneNumberRef.current);
+
+      if (simSwapResult.swapped === true || deviceSwapResult.swapped === true) {
+        setIdentityIntegrity('Good');
+      } else {
+        setIdentityIntegrity('Good');
+        if (artificialTime) setLastIntegrityCheckTime(new Date(artificialTime.getTime()));
+      }
+      if (autoGrant && checkInStatus === 'Checked In') {
+        setElevatorAccess('Yes, Floor 13');
+        setRoomAccess('Granted');
+      }
+      return true;
+    } catch (err) {
+      console.error('Identity integrity check failed:', err);
+      setIdentityIntegrity('Bad');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [artificialTime, setIdentityIntegrity, setElevatorAccess, setRoomAccess, setLastIntegrityCheckTime]);
+
   // --- Centralized Beacon Logic (Used by Manual & Auto Scan) ---
-  const processBeaconDetection = async (deviceName, rssi = null) => {
+  const processBeaconDetection = useCallback(async (deviceName, rssi = null) => {
       const currentHotelLoc = hotelLocationRef.current || { lat: -33.8688, lng: 151.2093 };
       const baseLat = currentHotelLoc.lat;
       const baseLng = currentHotelLoc.lng;
@@ -323,7 +355,7 @@ function App() {
       } else {
         addMessage(`Location Verified via BLE: ${locationLabel}`);
       }
-  };
+  }, [addMessage, setHotelLocation, setCheckInStatus, setRfidStatus, setElevatorAccess, setRoomAccess, setUserGps, checkIdentityIntegrity]);
 
   // --- Manual Scan (Chooser) ---
   const scanForBeacon = async () => {
@@ -335,8 +367,7 @@ function App() {
       addMessage("Requesting Bluetooth Device...");
       const device = await navigator.bluetooth.requestDevice({
         // filters: [{ namePrefix: 'MWC' }],
-        acceptAllDevices: true, 
-        optionalServices: ['battery_service']
+        acceptAllDevices: true
       });
 
       const deviceName = device.name || 'Unknown Device';
@@ -354,6 +385,18 @@ function App() {
   // --- Auto Scan (Experimental API) ---
   const scanRef = useRef(null);
 
+  const handleAdvertisement = useCallback((event) => {
+    // Filter weak signals to avoid jumping around
+    if (event.rssi < -80) return; 
+    
+    // Use event.name (advertised name) as priority, fallback to device.name
+    const deviceName = event.name || event.device.name;
+    
+    if (deviceName && deviceName.startsWith('MWC')) {
+       processBeaconDetection(deviceName, event.rssi);
+    }
+  }, [processBeaconDetection]);
+
   const toggleAutoScan = async () => {
     if (isAutoScanning) {
       // Stop Scanning
@@ -361,8 +404,9 @@ function App() {
         scanRef.current.stop();
         scanRef.current = null;
       }
-      if (navigator.bluetooth && navigator.bluetooth.removeEventListener) {
-          navigator.bluetooth.removeEventListener('advertisementreceived', handleAdvertisement);
+      if (activeListenerRef.current) {
+          navigator.bluetooth.removeEventListener('advertisementreceived', activeListenerRef.current);
+          activeListenerRef.current = null;
       }
       setIsAutoScanning(false);
       addMessage("Auto-Tracking Stopped.");
@@ -376,22 +420,15 @@ function App() {
         addMessage("Starting Auto-Tracking (Passive Scan)...");
         const scan = await navigator.bluetooth.requestLEScan({ acceptAllAdvertisements: true });
         scanRef.current = scan;
-        navigator.bluetooth.addEventListener('advertisementreceived', handleAdvertisement);
+        
+        // Store the stable function reference
+        activeListenerRef.current = handleAdvertisement;
+        navigator.bluetooth.addEventListener('advertisementreceived', activeListenerRef.current);
+        
         setIsAutoScanning(true);
       } catch (error) {
         addMessage(`Auto-Scan Error: ${error.message}`);
       }
-    }
-  };
-
-  const handleAdvertisement = (event) => {
-    // Filter weak signals to avoid jumping around
-    if (event.rssi < -80) return; 
-    
-    const deviceName = event.device.name || event.name;
-    if (deviceName && deviceName.startsWith('MWC')) {
-       // Throttle or Debounce could be added here if needed
-       processBeaconDetection(deviceName, event.rssi);
     }
   };
 
@@ -620,37 +657,6 @@ function App() {
     } catch (err) {
       console.error('API call failed:', err);
       setError('An error occurred during verification. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const checkIdentityIntegrity = async (loader, checkInStatus, autoGrant = true) => {
-    if (!verifiedPhoneNumberRef.current) {
-      alert('Please verify phone number first.');
-      return false;
-    }
-    if (loader) setIsLoading(true);
-    setIdentityIntegrity('Checking...');
-    try {
-      const simSwapResult = await api.simSwap(verifiedPhoneNumberRef.current);
-      const deviceSwapResult = await api.deviceSwap(verifiedPhoneNumberRef.current);
-
-      if (simSwapResult.swapped === true || deviceSwapResult.swapped === true) {
-        setIdentityIntegrity('Good');
-      } else {
-        setIdentityIntegrity('Good');
-        if (artificialTime) setLastIntegrityCheckTime(new Date(artificialTime.getTime()));
-      }
-      if (autoGrant && checkInStatus === 'Checked In') {
-        setElevatorAccess('Yes, Floor 13');
-        setRoomAccess('Granted');
-      }
-      return true;
-    } catch (err) {
-      console.error('Identity integrity check failed:', err);
-      setIdentityIntegrity('Bad');
-      return false;
     } finally {
       setIsLoading(false);
     }
