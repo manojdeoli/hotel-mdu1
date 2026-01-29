@@ -17,6 +17,23 @@ async function post(url, body) {
     return response.data;
 }
 
+// import axios from 'axios';
+
+// const API_BASE_URL = 'https://telstra-hackathon-apis.p-eu.rapidapi.com/passthrough/camara/v1';
+// const API_KEY = '15cc20cd08msh7054d8a2a3ed868p146283jsn43ebc1478fe7';
+
+// const defaultHeaders = {
+//     'Content-Type': 'application/json',
+//     'authorization': 'Test',
+//     'x-rapidapi-host': 'telstra-hackathon-apis.nokia.rapidapi.com',
+//     'x-rapidapi-key': API_KEY
+// };
+
+// async function post(url, body) {
+//     const response = await axios.post(url, body, { headers: defaultHeaders });
+//     return response.data;
+// }
+
 export function verifyPhoneNumber(phoneNumber, logApiInteraction) {
     // return post(`${API_BASE_URL}/number-verification/number-verification/v0/verify`, { phoneNumber });
     const requestPayload = { phoneNumber };
