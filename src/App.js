@@ -194,10 +194,19 @@ function App() {
   useEffect(() => {
     if (verifiedPhoneNumber) {
       addMessage(`Connecting to Gateway Server...`);
-      gatewayClient.connect(verifiedPhoneNumber);
-      setGatewayConnected(true);
-      setBleStatus('Connected');
-      addMessage(`Connected to Gateway: ${gatewayClient.getGatewayUrl()}`);
+      const socket = gatewayClient.connect(verifiedPhoneNumber);
+      
+      // Wait for actual connection
+      socket.on('connect', () => {
+        setGatewayConnected(true);
+        setBleStatus('Connected');
+        addMessage(`Connected to Gateway: ${gatewayClient.getGatewayUrl()}`);
+      });
+      
+      socket.on('disconnect', () => {
+        setGatewayConnected(false);
+        setBleStatus('Disconnected');
+      });
     } else {
       if (gatewayClient.isConnected()) {
         gatewayClient.disconnect();
