@@ -1,11 +1,9 @@
-import { io } from 'socket.io-client';
-
 // Gateway Server URL - Update this when deployed to cloud
 const GATEWAY_URL = process.env.REACT_APP_GATEWAY_URL || 'http://localhost:3001';
 
 class GatewayClient {
   constructor() {
-    this.socket = null;
+    this.ws = null;
     this.connected = false;
     this.subscribers = [];
     this.userId = null;
@@ -13,42 +11,48 @@ class GatewayClient {
 
   // Connect to Gateway Server
   connect(userId) {
-    if (this.socket) {
+    if (this.ws) {
       this.disconnect();
     }
 
     this.userId = userId;
-    this.socket = io(GATEWAY_URL, {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5
-    });
+    const wsUrl = GATEWAY_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+    
+    try {
+      this.ws = new WebSocket(wsUrl);
 
-    // Connection events
-    this.socket.on('connect', () => {
-      console.log('[Gateway] Connected to server');
-      this.connected = true;
-      
-      // Subscribe to user's BLE events
-      this.socket.emit('subscribe', { userId: this.userId });
-    });
+      this.ws.onopen = () => {
+        console.log('[Gateway] Connected to server');
+        this.connected = true;
+        
+        // Subscribe to user's BLE events
+        this.ws.send(JSON.stringify({ type: 'subscribe', userId: this.userId }));
+      };
 
-    this.socket.on('disconnect', () => {
-      console.log('[Gateway] Disconnected from server');
-      this.connected = false;
-    });
+      this.ws.onclose = () => {
+        console.log('[Gateway] Disconnected from server');
+        this.connected = false;
+      };
 
-    this.socket.on('connect_error', (error) => {
-      console.error('[Gateway] Connection error:', error.message);
-    });
+      this.ws.onerror = (error) => {
+        console.error('[Gateway] Connection error:', error);
+      };
 
-    // Listen for BLE events from Gateway
-    this.socket.on('ble_event', (data) => {
-      console.log('[Gateway] BLE event received:', data);
-      this.notifySubscribers(data);
-    });
+      // Listen for BLE events from Gateway
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('[Gateway] BLE event received:', data);
+          this.notifySubscribers(data);
+        } catch (error) {
+          console.error('[Gateway] Error parsing message:', error);
+        }
+      };
+    } catch (error) {
+      console.error('[Gateway] Failed to create WebSocket:', error);
+    }
 
-    return this.socket;
+    return this.ws;
   }
 
   // Subscribe to BLE events
@@ -74,9 +78,9 @@ class GatewayClient {
 
   // Disconnect from Gateway
   disconnect() {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
       this.connected = false;
       this.subscribers = [];
     }
@@ -84,7 +88,7 @@ class GatewayClient {
 
   // Check connection status
   isConnected() {
-    return this.connected;
+    return this.connected && this.ws && this.ws.readyState === WebSocket.OPEN;
   }
 
   // Get Gateway URL
