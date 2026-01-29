@@ -16,7 +16,12 @@ class GatewayClient {
     }
 
     this.userId = userId;
-    const wsUrl = GATEWAY_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+    // Convert HTTP URL to WebSocket URL and ensure proper path
+    let wsUrl = GATEWAY_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+    // Remove trailing slash if present, then add it back for consistency
+    wsUrl = wsUrl.replace(/\/$/, '') + '/';
+    
+    console.log('[Gateway] Connecting to:', wsUrl);
     
     try {
       this.ws = new WebSocket(wsUrl);
@@ -29,9 +34,19 @@ class GatewayClient {
         this.ws.send(JSON.stringify({ type: 'subscribe', userId: this.userId }));
       };
 
-      this.ws.onclose = () => {
-        console.log('[Gateway] Disconnected from server');
+      this.ws.onclose = (event) => {
+        console.log('[Gateway] Disconnected from server', event.code, event.reason);
         this.connected = false;
+        
+        // Auto-reconnect after 2 seconds if userId is still set
+        if (this.userId) {
+          console.log('[Gateway] Reconnecting in 2 seconds...');
+          setTimeout(() => {
+            if (this.userId) {
+              this.connect(this.userId);
+            }
+          }, 2000);
+        }
       };
 
       this.ws.onerror = (error) => {
@@ -78,6 +93,7 @@ class GatewayClient {
 
   // Disconnect from Gateway
   disconnect() {
+    this.userId = null; // Clear userId to prevent auto-reconnect
     if (this.ws) {
       this.ws.close();
       this.ws = null;
