@@ -129,7 +129,7 @@ function App() {
   const [initialUserLocation, setInitialUserLocation] = useSyncedState('initialUserLocation', null);
   const [lastIntegrityCheckTime, setLastIntegrityCheckTime] = useSyncedState('lastIntegrityCheckTime', null);
   const [bleStatus, setBleStatus] = useSyncedState('bleStatus', 'Disconnected');
-  const [gatewayConnected, setGatewayConnected] = useSyncedState('gatewayConnected', false);
+  const [, setGatewayConnected] = useSyncedState('gatewayConnected', false);
   const [secondUserGps, setSecondUserGps] = useSyncedState('secondUserGps', null);
   const [messages, setMessages] = useSyncedState('messages', []);
   const [apiLogs, setApiLogs] = useSyncedState('apiLogs', []);
@@ -334,7 +334,7 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [artificialTime, setIdentityIntegrity, setElevatorAccess, setRoomAccess, setLastIntegrityCheckTime]);
+  }, [artificialTime, logApiInteraction, setIdentityIntegrity, setElevatorAccess, setRoomAccess, setLastIntegrityCheckTime]);
 
   // --- Centralized Beacon Logic (Used by Manual & Auto Scan) ---
   const processBeaconDetection = useCallback(async (deviceName, rssi = null) => {
@@ -441,7 +441,7 @@ function App() {
         
         // Subscribe to Gateway BLE events
         bleUnsubscribeRef.current = gatewayClient.subscribe((data) => {
-          const { beaconName, rssi, zone } = data;
+          const { rssi, zone } = data;
           addMessage(`BLE Event: ${zone} (RSSI: ${rssi})`);
           // Use zone from Gateway instead of parsing beaconName
           processBeaconDetection(zone, rssi);
