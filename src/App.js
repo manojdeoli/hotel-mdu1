@@ -133,6 +133,7 @@ function App() {
   const [secondUserGps, setSecondUserGps] = useSyncedState('secondUserGps', null);
   const [messages, setMessages] = useSyncedState('messages', []);
   const [apiLogs, setApiLogs] = useSyncedState('apiLogs', []);
+  const [guestMessages, setGuestMessages] = useSyncedState('guestMessages', []);
   const [formState, setFormState] = useSyncedState('formState',
     formFields.reduce((acc, field) => ({ ...acc, [field.name]: '' }), {})
   );
@@ -170,6 +171,18 @@ function App() {
     });
   }, [setMessages]);
 
+  const addGuestMessage = useCallback((message, type = 'info') => {
+    setGuestMessages(prev => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        timestamp: new Date().toISOString(),
+        message,
+        type
+      }
+    ]);
+  }, [setGuestMessages]);
+
   // --- State Persistence Logic ---
   // On component mount, load state from localStorage
 
@@ -190,7 +203,7 @@ function App() {
   useEffect(() => { verifiedPhoneNumberRef.current = verifiedPhoneNumber; }, [verifiedPhoneNumber]);
   const bleUnsubscribeRef = useRef(null);
 
-  // Connect to Gateway Server and start BLE tracking when phone is verified
+  // Connect to Gateway Server when phone is verified (but don't start BLE tracking yet)
   useEffect(() => {
     if (verifiedPhoneNumber) {
       addMessage(`Connecting to Gateway Server...`);
@@ -198,16 +211,6 @@ function App() {
       setGatewayConnected(true);
       setBleStatus('Connected');
       addMessage(`Connected to Gateway: ${gatewayClient.getGatewayUrl()}`);
-      
-      // Auto-start BLE tracking
-      addMessage("Starting Auto-Tracking (Gateway WebSocket)...");
-      bleUnsubscribeRef.current = gatewayClient.subscribe((data) => {
-        const { rssi, zone } = data;
-        addMessage(`BLE Event: ${zone} (RSSI: ${rssi})`);
-        // Call processBeaconDetection directly without dependency
-        processBeaconDetection(zone, rssi);
-      });
-      setIsAutoScanning(true);
     } else {
       // Stop tracking and disconnect when phone is unverified
       if (bleUnsubscribeRef.current) {
@@ -232,7 +235,7 @@ function App() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verifiedPhoneNumber, addMessage, setGatewayConnected, setBleStatus, setIsAutoScanning]);
+  }, [verifiedPhoneNumber, addMessage, setGatewayConnected, setBleStatus]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -251,8 +254,10 @@ function App() {
   useEffect(() => {
     if (checkInStatus === 'Checked Out') { // Only show checkout message here
       addMessage('Thank you for staying with us! Your check-out is complete');
+      const guestName = formState.name ? formState.name.split(' ')[0] : 'Guest';
+      addGuestMessage(`Thank you for staying at Telstra Towers, ${guestName}! We hope to see you again soon!`, 'success');
     }
-  }, [verifiedPhoneNumber, checkInStatus, kycMatchResponse, addMessage]);
+  }, [verifiedPhoneNumber, checkInStatus, kycMatchResponse, formState.name, addMessage, addGuestMessage]);
 
   const handleRegistrationSequence = async () => {
     if (!verifiedPhoneNumber) {
@@ -260,6 +265,7 @@ function App() {
       return;
     }
     addMessage("Starting Registration Sequence...");
+    addGuestMessage('Starting your registration process...', 'processing');
 
     // 1. Use KYC Fill to partially populate
     addMessage("Partially populating form with KYC Fill...");
@@ -284,9 +290,12 @@ function App() {
     if (allFieldsMatch) {
       addMessage('KYC Match successful. Proceed with check-in.');
       setRegistrationStatus('Registered');
+      const guestName = kycData.name ? kycData.name.split(' ')[0] : 'Guest';
+      addGuestMessage(`Registration successful, ${guestName}!`, 'success');
     } else {
       setRegistrationStatus('Not Registered'); // Explicitly ensure status is not registered
       addMessage('KYC Match failed for some fields. Please correct and re-submit.');
+      addGuestMessage('Registration incomplete. Please verify your information and try again.', 'error');
       await new Promise(resolve => setTimeout(resolve, 5000));
       userProfileRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -316,11 +325,15 @@ function App() {
       if (allFieldsMatch) {
         setRegistrationStatus('Registered');
         addMessage('KYC Match successful. Proceed with check-in.');
+        addGuestMessage('Your information has been verified successfully!', 'success');
+      } else {
+        addGuestMessage('Some information could not be verified. Please check and update.', 'error');
       }
 
     } catch (err) {
       console.error('KYC Match failed:', err);
       addMessage(`KYC Match API Error: ${err.message}`);
+      addGuestMessage('Verification failed. Please try again.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -366,12 +379,14 @@ function App() {
       
       let newLocation = null;
       let locationLabel = "Unknown Area";
+      const guestName = formState.name ? formState.name.split(' ')[0] : 'Guest';
 
       // --- Decision Logic based on Beacon Name ---
       if (deviceName.includes("Entry") || deviceName.includes("Gate")) {
         locationLabel = "Hotel Entry Gate";
         newLocation = { lat: baseLat, lng: baseLng };
         addMessage("Context: User arrived at Entry Gate.");
+        addGuestMessage(`Welcome to Telstra Towers, ${guestName}! You have arrived at the hotel entrance.`, 'info');
         
       } else if (deviceName.includes("Kiosk") || deviceName.includes("Lobby")) {
         locationLabel = "Check-in Kiosk";
@@ -380,9 +395,13 @@ function App() {
         
         if (checkInStatusRef.current !== 'Checked In') {
             addMessage("Beacon Trigger: Initiating Check-in...");
+            addGuestMessage('Processing your check-in...', 'processing');
             setCheckInStatus("Checked In");
             setRfidStatus("Verified");
-            setTimeout(() => setRfidStatus("Unverified"), 3000);
+            setTimeout(() => {
+              setRfidStatus("Unverified");
+              addGuestMessage(`Check-in complete, ${guestName}! Welcome to Room 1337. Enjoy your stay!`, 'success');
+            }, 3000);
         }
 
       } else if (deviceName.includes("Elevator") || deviceName.includes("Lift")) {
@@ -393,10 +412,14 @@ function App() {
         // Auto-trigger Elevator Access
         if (elevatorAccessRef.current !== 'Yes, Floor 13') {
             addMessage("Beacon Trigger: Verifying Identity for Elevator...");
+            addGuestMessage('Verifying your identity for elevator access...', 'processing');
             const identityResult = await checkIdentityIntegrity(false, 'Checked In', false);
             if (identityResult) {
                 setElevatorAccess('Yes, Floor 13');
                 addMessage("Access Granted: Elevator to Floor 13.");
+                addGuestMessage('Elevator access granted! Proceeding to Floor 13.', 'success');
+            } else {
+                addGuestMessage('Elevator access denied. Please contact reception.', 'error');
             }
         }
 
@@ -408,12 +431,16 @@ function App() {
         // Auto-trigger Room Access
         if (roomAccessRef.current !== 'Granted') {
              addMessage("Beacon Trigger: Verifying Identity for Room...");
+             addGuestMessage('Verifying your identity for room access...', 'processing');
              const identityResult = await checkIdentityIntegrity(false, 'Checked In', false);
              if (identityResult) {
                  setRoomAccess('Granted');
                  setRfidStatus('Verified');
                  setTimeout(() => setRfidStatus('Unverified'), 3000);
                  addMessage("Access Granted: Room 1337 Unlocked.");
+                 addGuestMessage(`Welcome to your room, ${guestName}! Door unlocked. Enjoy your stay!`, 'success');
+             } else {
+                 addGuestMessage('Room access denied. Please contact reception.', 'error');
              }
         }
       }
@@ -424,7 +451,7 @@ function App() {
       } else {
         addMessage(`Location Verified via BLE: ${locationLabel}`);
       }
-  }, [addMessage, setHotelLocation, setCheckInStatus, setRfidStatus, setElevatorAccess, setRoomAccess, setUserGps, checkIdentityIntegrity]);
+  }, [addMessage, addGuestMessage, formState.name, setHotelLocation, setCheckInStatus, setRfidStatus, setElevatorAccess, setRoomAccess, setUserGps, checkIdentityIntegrity]);
 
 
 
@@ -435,6 +462,7 @@ function App() {
   const handleAccessSequence = async (passedLocation) => {
     // Use passed location if available (from API callback), otherwise fallback to state
     const currentLocation = (passedLocation && passedLocation.lat) ? passedLocation : hotelLocation;
+    const guestName = formState.name ? formState.name.split(' ')[0] : 'Guest';
 
     addMessage("Starting Elevator and Room Access sequence...");
     
@@ -446,14 +474,17 @@ function App() {
 
     // 1. Call Identity
     addMessage("Verifying identity for elevator access...");
+    addGuestMessage('Verifying your identity for elevator access...', 'processing');
     const identityResult = await checkIdentityIntegrity(false, 'Checked In'); // Call without showing main loader
 
     // 2. Wait and grant elevator access
     await new Promise(resolve => setTimeout(resolve, 5000));
     if (identityResult) {
       addMessage("Identity confirmed. Elevator access granted to floor 13.");
+      addGuestMessage('Elevator access granted! Proceeding to Floor 13.', 'success');
     } else {
       addMessage("Could not grant elevator access. Identity check failed.");
+      addGuestMessage('Elevator access denied. Please contact reception.', 'error');
       return; // Stop sequence if initial checks fail
     }
 
@@ -467,6 +498,7 @@ function App() {
     }
 
     addMessage("Tap phone on room door lock to re-verify...");
+    addGuestMessage('Verifying your identity for room access...', 'processing');
     setRfidStatus('Verified');
 
     await new Promise(resolve => setTimeout(resolve, 5000));
@@ -476,8 +508,10 @@ function App() {
     if (roomAccessIdentityResult) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       addMessage("Identity re-confirmed. Room access granted.");
+      addGuestMessage(`Welcome to your room, ${guestName}! Door unlocked. Enjoy your stay!`, 'success');
     } else {
       addMessage("Room access denied. Identity check failed at the door.");
+      addGuestMessage('Room access denied. Please contact reception.', 'error');
     }
 
     await new Promise(resolve => setTimeout(resolve, 3000));
@@ -522,7 +556,7 @@ function App() {
 
   // Fix map rendering issues when switching tabs
   useEffect(() => {
-    if (activeTab === 'details' && map) {
+    if ((activeTab === 'details' || activeTab === 'dashboard') && map) {
       setTimeout(() => {
         map.invalidateSize();
       }, 200);
@@ -624,12 +658,15 @@ function App() {
         addMessage("Phone number is verified...");
         setSuccess('Phone number is verified.');
         setVerifiedPhoneNumber(fullPhoneNumber);
+        addGuestMessage('Welcome! Your phone number has been verified successfully.', 'welcome');
       } else {
         setError(`Phone number verification failed.`);
+        addGuestMessage('Phone verification failed. Please try again.', 'error');
       }
     } catch (err) {
       console.error('API call failed:', err);
       setError('An error occurred during verification. Please try again.');
+      addGuestMessage('An error occurred during verification. Please try again.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -725,7 +762,13 @@ function App() {
           generateRoute,
           setArtificialTime,
           handleAccessSequence, // Pass the access handler to the arrival sequence
-          logApiInteraction // Pass logger
+          logApiInteraction, // Pass logger
+          addGuestMessage, // Pass guest message function
+          formState.name ? formState.name.split(' ')[0] : 'Guest', // Pass guest name
+          gatewayClient, // Pass gateway client
+          processBeaconDetection, // Pass beacon detection function
+          setIsAutoScanning, // Pass setIsAutoScanning
+          bleUnsubscribeRef // Pass bleUnsubscribeRef
         );
       } else if (mode === 'departure') {
         const guestName = formState.name ? `${formState.name}` : 'Guest';
@@ -743,7 +786,8 @@ function App() {
           setElevatorAccess, // Pass setters to reset access
           setRoomAccess, // Pass setters to reset access
           guestName, // Pass guestName to the API call
-          logApiInteraction // Pass logger
+          logApiInteraction, // Pass logger
+          addGuestMessage // Pass guest message function
         );
 
         setTimeout(() => {
@@ -811,7 +855,10 @@ function App() {
               <button className={`nav-link ${activeTab === 'api' ? 'active' : ''}`} onClick={() => setActiveTab('api')}>API Interaction</button>
             </li>
             <li className="nav-item">
-              <button className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>Guest Dashboard</button>
+              <button className={`nav-link ${activeTab === 'guest' ? 'active' : ''}`} onClick={() => setActiveTab('guest')}>Guest Information</button>
+            </li>
+            <li className="nav-item">
+              <button className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>Hospital Dashboard</button>
             </li>
             <li className="nav-item">
               <button className={`nav-link ${activeTab === 'details' ? 'active' : ''}`} onClick={() => setActiveTab('details')}>All Details</button>
@@ -856,8 +903,33 @@ function App() {
               </div>
             </div>
 
-            {/* Tab 2 & 3: Dashboard & Details - Left Column */}
-            <div className={`dashboard-column ${activeTab !== 'api' ? '' : 'd-none'}`} style={{ flex: '1', minWidth: '300px' }}>
+            {/* Tab 2: Guest Information (Full Width) */}
+            <div className={`dashboard-column ${activeTab === 'guest' ? '' : 'd-none'}`} style={{ width: '100%' }}>
+              <div className="card">
+                <h2 className="card-header">Guest Information</h2>
+                <div className="p-3">
+                  {guestMessages.length === 0 ? (
+                    <p className="text-center text-muted" style={{ padding: '40px 20px' }}>No messages yet. Start your journey by verifying your phone number.</p>
+                  ) : (
+                    <div className="guest-messages-list">
+                      {guestMessages.map(msg => (
+                        <div key={msg.id} className={`alert alert-${msg.type === 'success' ? 'success' : msg.type === 'error' ? 'danger' : msg.type === 'processing' ? 'warning' : msg.type === 'welcome' ? 'primary' : 'info'} mb-3`}>
+                          <div className="d-flex justify-content-between align-items-start">
+                            <div style={{ flex: 1 }}>
+                              <p className="mb-0" style={{ fontSize: '16px' }}>{msg.message}</p>
+                            </div>
+                            <small className="text-muted ml-3" style={{ whiteSpace: 'nowrap' }}>{new Date(msg.timestamp).toLocaleTimeString()}</small>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tab 3 & 4: Dashboard & Details - Left Column */}
+            <div className={`dashboard-column ${activeTab === 'dashboard' || activeTab === 'details' ? '' : 'd-none'}`} style={{ flex: '1', minWidth: '300px' }}>
               
               {/* Action Buttons */}
               <div id="actionButtons" className="card">
@@ -925,8 +997,8 @@ function App() {
               </div>
             </div>
 
-            {/* Tab 2 & 3: Dashboard & Details - Right Column */}
-            <div className={`dashboard-column ${activeTab !== 'api' ? '' : 'd-none'}`} style={{ flex: '1', minWidth: '300px' }}>
+            {/* Tab 3 & 4: Dashboard & Details - Right Column */}
+            <div className={`dashboard-column ${activeTab === 'dashboard' || activeTab === 'details' ? '' : 'd-none'}`} style={{ flex: '1', minWidth: '300px' }}>
               
               {/* Booking Details (Moved from User Status) */}
               <div id="bookingDetails" className="card">

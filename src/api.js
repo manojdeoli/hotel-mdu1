@@ -282,8 +282,9 @@ export function carrierBilling(phoneNumber, logApiInteraction) {
     });
 }
 
-export async function startBookingAndArrivalSequence(phoneNumber, initialUserLocation, hotelLocation, addMessage, setLocation, setUserGps, setCheckInStatus, setRfidStatus, setPaymentStatus, setElevatorAccess, setRoomAccess, generateRoute, setArtificialTime, handleAccessSequence, logApiInteraction) {
+export async function startBookingAndArrivalSequence(phoneNumber, initialUserLocation, hotelLocation, addMessage, setLocation, setUserGps, setCheckInStatus, setRfidStatus, setPaymentStatus, setElevatorAccess, setRoomAccess, generateRoute, setArtificialTime, handleAccessSequence, logApiInteraction, addGuestMessage, guestName = 'Guest', gatewayClient, processBeaconDetection, setIsAutoScanning, bleUnsubscribeRef) {
     addMessage("Starting Booking and Arrival sequence...");
+    addGuestMessage(`Your journey to Telstra Towers is beginning, ${guestName}...`, 'info');
 
     await new Promise(resolve => setTimeout(resolve, 5000));
     addMessage("Pre-populating booking information...");
@@ -333,10 +334,20 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
     }
 
     addMessage("User has arrived within the vicinity.");
+    addGuestMessage(`You are approaching Telstra Towers, ${guestName}. Check-in will be available soon!`, 'info');
 
     // Update location to Hotel Entrance
     setUserGps(hotelLocation);
     addMessage("Location updated: Hotel Entrance");
+
+    // Start BLE Auto-Tracking when guest arrives at hotel
+    addMessage(`Starting ${guestName} Auto-Tracking`);
+    bleUnsubscribeRef.current = gatewayClient.subscribe((data) => {
+        const { rssi, zone } = data;
+        addMessage(`BLE Event: ${zone} (RSSI: ${rssi})`);
+        processBeaconDetection(zone, rssi);
+    });
+    setIsAutoScanning(true);
 
     await new Promise(resolve => setTimeout(resolve, 5000));
     addMessage("Calling Location Verification...");
@@ -355,8 +366,10 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
     if (verification.verificationResult === "TRUE") {
         addMessage("Location verification successful...");
         addMessage("Welcome to Telstra Towers!");
+        addGuestMessage(`Welcome to Telstra Towers, ${guestName}!`, 'success');
 
         // (ii) Check in (involves RFID scan)
+        addGuestMessage('Processing your check-in at the kiosk...', 'processing');
         setCheckInStatus("Checked In");
         
         // Update location to Check-in Desk
@@ -367,26 +380,32 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
         addMessage("Check-in process: RFID scan at kiosk...");
         setRfidStatus("Verified");
         await new Promise(resolve => setTimeout(resolve, 2000));
-        setRfidStatus("Unverified");
-        addMessage("Check-in complete. RFID status reset.");
+        addMessage("Check-in complete. RFID activated.");
+        addGuestMessage(`Check-in complete, ${guestName}! Welcome to Room 1337. Enjoy your stay!`, 'success');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        addGuestMessage('Hotel amenities: Pool (Level 5), Gym (Level 4), Restaurant (Ground Floor)', 'info');
 
         // Now, trigger the shared access sequence for steps (iii) and (iv)
         await handleAccessSequence(hotelLocation);
     } else {
         addMessage("Location verification failed.");
+        addGuestMessage('Location verification failed. Please contact reception.', 'error');
     }
 }
 
-export async function startCheckOutSequence(phoneNumber, initialUserLocation, hotelLocation, addMessage, setLocation, setUserGps, setCheckInStatus, generateRoute, setArtificialTime, setPaymentStatus, setElevatorAccess, setRoomAccess, guestName, logApiInteraction) {
+export async function startCheckOutSequence(phoneNumber, initialUserLocation, hotelLocation, addMessage, setLocation, setUserGps, setCheckInStatus, generateRoute, setArtificialTime, setPaymentStatus, setElevatorAccess, setRoomAccess, guestName, logApiInteraction, addGuestMessage) {
     addMessage("Starting Check-out sequence...");
+    addGuestMessage(`Processing your check-out, ${guestName}. Please wait...`, 'processing');
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     addMessage("Calling Carrier Billing API to finalise payment...");
     const billingRes = await carrierBilling(phoneNumber, logApiInteraction);
     if (billingRes.paymentStatus === 'succeeded') {
         addMessage("Carrier Billing Successful. Amount: 299.00 AUD");
+        addGuestMessage('Payment successful! Amount charged: $299.00 AUD', 'success');
     } else {
         addMessage("Carrier Billing Failed.");
+        addGuestMessage('Payment failed. Please contact reception.', 'error');
     }
     await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -425,7 +444,7 @@ export async function startCheckOutSequence(phoneNumber, initialUserLocation, ho
 
     addMessage(`Contact guest ${guestName} on ${phoneNumber} to confirm check out.`);
     setCheckInStatus("Checked Out");
-   
+    setRfidStatus("Unverified");
     setPaymentStatus("Paid");
     setElevatorAccess("No");
     setRoomAccess("No");
