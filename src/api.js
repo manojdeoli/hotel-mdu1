@@ -295,16 +295,20 @@ export function clearBeaconQueue() {
 
 // Function to notify beacon detection
 export function notifyBeaconDetection(beaconName) {
-    console.log('[API] Beacon detected, notifying waiters:', beaconName);
+    console.log('[API] notifyBeaconDetection called with:', beaconName, 'type:', typeof beaconName);
+    if (!beaconName) {
+        console.log('[API] WARNING: beaconName is null/undefined!');
+        return;
+    }
     console.log('[API] Current waiters:', beaconWaiters.length);
     beaconEventQueue.push(beaconName);
     // Check all waiters
     beaconWaiters.forEach((waiter, index) => {
         const matched = waiter.keywords.some(keyword => beaconName.toLowerCase().includes(keyword.toLowerCase()));
-        console.log(`[API] Checking waiter ${index}, keywords:`, waiter.keywords, 'matched:', matched);
+        console.log(`[API] Checking waiter ${index}, keywords:`, waiter.keywords, 'beaconName:', beaconName, 'matched:', matched);
         if (matched && !waiter.resolved) {
             waiter.resolved = true;
-            console.log('[API] Resolving waiter with beaconName:', beaconName);
+            console.log('[API] ✓ Resolving waiter with beaconName:', beaconName);
             waiter.resolve(beaconName);
         }
     });
