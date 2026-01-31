@@ -285,12 +285,19 @@ export function carrierBilling(phoneNumber, logApiInteraction) {
 // Global beacon event queue for waiting
 let beaconEventQueue = [];
 let beaconWaiters = [];
+let currentWaitingStage = null; // Track which stage is currently waiting
 
 // Function to clear beacon queue (call at start of sequence)
 export function clearBeaconQueue() {
     console.log('[API] Clearing beacon queue and waiters');
     beaconEventQueue = [];
     beaconWaiters = [];
+    currentWaitingStage = null;
+}
+
+// Function to get current waiting stage
+export function getCurrentWaitingStage() {
+    return currentWaitingStage;
 }
 
 // Function to manually skip current beacon wait
@@ -333,10 +340,13 @@ export function notifyBeaconDetection(beaconName) {
 }
 
 // Helper function to wait for specific BLE beacon
-function waitForBeacon(beaconKeywords, addMessage) {
+function waitForBeacon(beaconKeywords, addMessage, stage) {
     return new Promise((resolve) => {
         console.log('[API] Waiting for beacon with keywords:', beaconKeywords);
         addMessage(`Waiting for BLE beacon detection (${beaconKeywords.join(' or ')})...`);
+        
+        // Set current waiting stage
+        currentWaitingStage = stage;
         
         // Check if beacon already detected
         const existingBeacon = beaconEventQueue.find(beaconName => 
@@ -346,12 +356,20 @@ function waitForBeacon(beaconKeywords, addMessage) {
         if (existingBeacon) {
             console.log('[API] Beacon already in queue:', existingBeacon);
             addMessage(`BLE Beacon detected: ${existingBeacon}`);
+            currentWaitingStage = null;
             resolve(existingBeacon);
             return;
         }
         
         // Add to waiters
-        const waiter = { keywords: beaconKeywords, resolve, resolved: false };
+        const waiter = { 
+            keywords: beaconKeywords, 
+            resolve: (value) => {
+                currentWaitingStage = null;
+                resolve(value);
+            }, 
+            resolved: false 
+        };
         beaconWaiters.push(waiter);
         console.log('[API] Added waiter, total waiters:', beaconWaiters.length);
     });
@@ -422,14 +440,14 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
     // STEP 1: Wait for Entry Gate beacon
     addMessage("Waiting for guest to reach Entry Gate...");
     addGuestMessage(`Please proceed to the hotel entrance, ${guestName}.`, 'info');
-    await waitForBeacon(['Gate', 'Hotel'], addMessage);
+    await waitForBeacon(['Gate', 'Hotel'], addMessage, 'gate');
     addGuestMessage(`Welcome to Telstra Towers, ${guestName}! You have arrived at the hotel entrance.`, 'success');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // STEP 2: Wait for Kiosk beacon
     addMessage("Waiting for guest to reach Check-in Kiosk...");
     addGuestMessage('Please proceed to the check-in kiosk.', 'info');
-    await waitForBeacon(['Kiosk', 'Lobby'], addMessage);
+    await waitForBeacon(['Kiosk', 'Lobby'], addMessage, 'kiosk');
     
     addMessage("Guest at Check-in Kiosk. Processing check-in...");
     addGuestMessage('Processing your check-in...', 'processing');
@@ -449,7 +467,7 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
     // STEP 3: Wait for Elevator beacon
     addMessage("Waiting for guest to reach Elevator...");
     addGuestMessage('Please proceed to the elevator.', 'info');
-    await waitForBeacon(['Elevator', 'Elevetor', 'Lift'], addMessage);
+    await waitForBeacon(['Elevator', 'Elevetor', 'Lift'], addMessage, 'elevator');
     
     addMessage("Guest at Elevator. Verifying identity...");
     addGuestMessage('Verifying your identity for elevator access...', 'processing');
@@ -471,7 +489,7 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
     // STEP 4: Wait for Room beacon
     addMessage("Waiting for guest to reach Room Door...");
     addGuestMessage('Please proceed to your room (Room 1337).', 'info');
-    await waitForBeacon(['Room', 'Door'], addMessage);
+    await waitForBeacon(['Room', 'Door'], addMessage, 'room');
     
     addMessage("Guest at Room Door. Verifying identity...");
     addGuestMessage('Verifying your identity for room access...', 'processing');

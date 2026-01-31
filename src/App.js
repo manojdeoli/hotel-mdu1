@@ -994,19 +994,19 @@ function App() {
                   <li><strong>Registration Status:</strong> <span style={{ color: registrationStatus === 'Registered' ? 'green' : 'red' }}>{registrationStatus}</span>
                   </li>
                   <li><strong>Check-in Status:</strong> <span style={{ color: checkInStatus === 'Checked In' ? 'green' : 'red' }}>{checkInStatus}</span>
-                    {isSequenceRunning && checkInStatus !== 'Checked In' && userGps && hotelLocation && getDistance(userGps, hotelLocation) < 500 && (
+                    {isSequenceRunning && api.getCurrentWaitingStage() === 'kiosk' && (
                       <button className="btn btn-sm btn-warning ml-2" onClick={() => { addMessage('Manual skip triggered'); api.skipCurrentBeacon(); }}>Skip Wait</button>
                     )}
                   </li>
                   <li><strong>Payment Status:</strong> <span style={{ color: paymentStatus === 'Paid' ? 'green' : 'red' }}>{paymentStatus}</span></li>
                   <li><strong>RFID Verification:</strong> <span style={{ color: rfidStatus === 'Verified' ? 'green' : 'red' }}>{rfidStatus}</span></li>
                   <li><strong>Elevator Access:</strong> <span>{elevatorAccess}</span>
-                    {isSequenceRunning && checkInStatus === 'Checked In' && elevatorAccess === 'No' && (
+                    {isSequenceRunning && api.getCurrentWaitingStage() === 'elevator' && (
                       <button className="btn btn-sm btn-warning ml-2" onClick={() => { addMessage('Manual skip triggered'); api.skipCurrentBeacon(); }}>Skip Wait</button>
                     )}
                   </li>
                   <li><strong>Room Access:</strong> <span>{roomAccess}</span>
-                    {isSequenceRunning && elevatorAccess !== 'No' && roomAccess !== 'Granted' && (
+                    {isSequenceRunning && api.getCurrentWaitingStage() === 'room' && (
                       <button className="btn btn-sm btn-warning ml-2" onClick={() => { addMessage('Manual skip triggered'); api.skipCurrentBeacon(); }}>Skip Wait</button>
                     )}
                   </li>
