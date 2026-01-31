@@ -372,8 +372,10 @@ function App() {
 
   // --- Centralized Beacon Logic (Used by Manual & Auto Scan) ---
   const processBeaconDetection = useCallback(async (deviceName, rssi = null) => {
+      console.log('[App.js] processBeaconDetection called with:', deviceName, rssi);
       // Notify the api.js waiting system
       api.notifyBeaconDetection(deviceName);
+      console.log('[App.js] Called api.notifyBeaconDetection');
       
       const currentHotelLoc = hotelLocationRef.current || { lat: -33.8688, lng: 151.2093 };
       const baseLat = currentHotelLoc.lat;
