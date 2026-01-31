@@ -286,6 +286,13 @@ export function carrierBilling(phoneNumber, logApiInteraction) {
 let beaconEventQueue = [];
 let beaconWaiters = [];
 
+// Function to clear beacon queue (call at start of sequence)
+export function clearBeaconQueue() {
+    console.log('[API] Clearing beacon queue and waiters');
+    beaconEventQueue = [];
+    beaconWaiters = [];
+}
+
 // Function to notify beacon detection
 export function notifyBeaconDetection(beaconName) {
     console.log('[API] Beacon detected, notifying waiters:', beaconName);
@@ -329,6 +336,9 @@ function waitForBeacon(beaconKeywords, addMessage) {
 }
 
 export async function startBookingAndArrivalSequence(phoneNumber, initialUserLocation, hotelLocation, addMessage, setLocation, setUserGps, setCheckInStatus, setRfidStatus, setPaymentStatus, setElevatorAccess, setRoomAccess, generateRoute, setArtificialTime, handleAccessSequence, logApiInteraction, addGuestMessage, guestName = 'Guest', gatewayClient, processBeaconDetection, setIsAutoScanning, bleUnsubscribeRef) {
+    // Clear any previous beacon events
+    clearBeaconQueue();
+    
     addMessage("Starting Booking and Arrival sequence...");
     addGuestMessage(`Your journey to Telstra Towers is beginning, ${guestName}...`, 'info');
 
@@ -416,7 +426,7 @@ export async function startBookingAndArrivalSequence(phoneNumber, initialUserLoc
     // STEP 3: Wait for Elevator beacon
     addMessage("Waiting for guest to reach Elevator...");
     addGuestMessage('Please proceed to the elevator.', 'info');
-    await waitForBeacon(['Elevator', 'Lift'], addMessage);
+    await waitForBeacon(['Elevator', 'Elevetor', 'Lift'], addMessage);
     
     addMessage("Guest at Elevator. Verifying identity...");
     addGuestMessage('Verifying your identity for elevator access...', 'processing');
