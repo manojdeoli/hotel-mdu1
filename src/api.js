@@ -305,12 +305,12 @@ export function skipCurrentBeacon() {
     console.log('[API] Manual skip triggered, waiters:', beaconWaiters.length);
     if (beaconWaiters.length > 0) {
         const waiter = beaconWaiters[0];
-        console.log('[API] Waiter details:', { keywords: waiter.keywords, resolved: waiter.resolved });
+        console.log('[API] Waiter details:', { keywords: waiter.keywords, resolved: waiter.resolved, stage: waiter.stage });
         if (!waiter.resolved) {
             waiter.resolved = true;
+            currentWaitingStage = null;
             console.log('[API] ✓ Manually resolving waiter');
             waiter.resolve('MANUAL_SKIP');
-            // Remove the resolved waiter
             beaconWaiters.shift();
         }
     } else {
@@ -364,11 +364,9 @@ function waitForBeacon(beaconKeywords, addMessage, stage) {
         // Add to waiters
         const waiter = { 
             keywords: beaconKeywords, 
-            resolve: (value) => {
-                currentWaitingStage = null;
-                resolve(value);
-            }, 
-            resolved: false 
+            resolve: resolve,
+            resolved: false,
+            stage: stage
         };
         beaconWaiters.push(waiter);
         console.log('[API] Added waiter, total waiters:', beaconWaiters.length);
