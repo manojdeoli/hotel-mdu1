@@ -288,12 +288,16 @@ let beaconWaiters = [];
 
 // Function to notify beacon detection
 export function notifyBeaconDetection(zone) {
+    console.log('[API] Beacon detected, notifying waiters:', zone);
+    console.log('[API] Current waiters:', beaconWaiters.length);
     beaconEventQueue.push(zone);
     // Check all waiters
-    beaconWaiters.forEach(waiter => {
+    beaconWaiters.forEach((waiter, index) => {
         const matched = waiter.keywords.some(keyword => zone.toLowerCase().includes(keyword.toLowerCase()));
+        console.log(`[API] Checking waiter ${index}, keywords:`, waiter.keywords, 'matched:', matched);
         if (matched && !waiter.resolved) {
             waiter.resolved = true;
+            console.log('[API] Resolving waiter with zone:', zone);
             waiter.resolve(zone);
         }
     });
@@ -302,6 +306,7 @@ export function notifyBeaconDetection(zone) {
 // Helper function to wait for specific BLE beacon
 function waitForBeacon(beaconKeywords, addMessage) {
     return new Promise((resolve) => {
+        console.log('[API] Waiting for beacon with keywords:', beaconKeywords);
         addMessage(`Waiting for BLE beacon detection (${beaconKeywords.join(' or ')})...`);
         
         // Check if beacon already detected
@@ -310,6 +315,7 @@ function waitForBeacon(beaconKeywords, addMessage) {
         );
         
         if (existingBeacon) {
+            console.log('[API] Beacon already in queue:', existingBeacon);
             addMessage(`BLE Beacon already detected: ${existingBeacon}`);
             resolve(existingBeacon);
             return;
@@ -318,6 +324,7 @@ function waitForBeacon(beaconKeywords, addMessage) {
         // Add to waiters
         const waiter = { keywords: beaconKeywords, resolve, resolved: false };
         beaconWaiters.push(waiter);
+        console.log('[API] Added waiter, total waiters:', beaconWaiters.length);
     });
 }
 
